@@ -1,5 +1,6 @@
 from .instrumentation import (
     MusclesTracer,
+    OtelContextMixin,
     OtelStrategyMixin,
     SpanRecord,
     instrument_action_dispatch,
@@ -8,6 +9,7 @@ from .instrumentation import (
 
 __all__ = [
     "MusclesTracer",
+    "OtelContextMixin",
     "OtelStrategyMixin",
     "SpanRecord",
     "instrument_action_dispatch",

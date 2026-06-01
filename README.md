@@ -30,6 +30,7 @@ Implemented opt-in lifecycle instrumentation:
 - disabled mode: no span allocation and zero records;
 - enabled mode: span duration and attributes are captured.
 - `OtelStrategyMixin` for `muscles.strategy.execute`;
+- `OtelContextMixin` for `muscles.context.execute`;
 - `instrument_server_dispatch()` for `muscles.server.dispatch`;
 - `instrument_action_dispatch()` for:
   - `muscles.action.execute`;
@@ -38,6 +39,11 @@ Implemented opt-in lifecycle instrumentation:
   - `muscles.action.handler`;
 - error status/events for validation, permission, and execution failures;
 - sensitive attribute redaction by default.
+
+Implementation note: action lifecycle spans currently mirror the core
+dispatcher phases through the available dispatcher methods. A future core hook
+API can replace this with official callbacks without changing the public
+instrumentation surface.
 
 ### Run tests
 

@@ -4,7 +4,18 @@
 отдельный business dispatch layer и не собственная routing/action/validation/
 permissions model.
 
-## Strategy execution
+## Context и strategy execution
+
+Используйте `OtelContextMixin` вместе с `muscles.core.Context`, чтобы
+инструментировать полный lifecycle `Context.execute`:
+
+```python
+class TracedContext(OtelContextMixin, Context):
+    pass
+```
+
+Передача `otel_tracer=tracer` в `context.execute(...)` создает span
+`muscles.context.execute` и передает тот же tracer в strategy.
 
 Используйте `OtelStrategyMixin` вместе с конкретной strategy:
 
@@ -51,6 +62,9 @@ Helper записывает:
 
 Validation, rules/security и handler execution остаются в Muscles core.
 Instrumentation не должна вызывать handler больше одного раза.
+
+Stage note: action phase spans сейчас повторяют доступные фазы core dispatcher.
+В будущем лучше заменить это на официальный core hook API.
 
 ## Sensitive data
 

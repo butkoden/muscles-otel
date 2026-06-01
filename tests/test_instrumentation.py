@@ -12,6 +12,7 @@ from muscles.core import (
 
 from muscles_otel import (
     MusclesTracer,
+    OtelContextMixin,
     OtelStrategyMixin,
     SpanRecord,
     instrument_action_dispatch,
@@ -25,6 +26,10 @@ class _EchoStrategy(BaseStrategy):
 
 
 class _TracedStrategy(OtelStrategyMixin, _EchoStrategy):
+    pass
+
+
+class _TracedContext(OtelContextMixin, Context):
     pass
 
 
@@ -97,6 +102,23 @@ def test_strategy_mixin_creates_strategy_execute_span():
     assert [record.name for record in tracer.records] == ["muscles.strategy.execute"]
     assert tracer.records[0].attributes["muscles.strategy"] == "_TracedStrategy"
     assert tracer.records[0].attributes["muscles.app"] == "_App"
+
+
+def test_context_mixin_creates_context_execute_span_and_passes_tracer_to_strategy():
+    tracer = MusclesTracer(enabled=True)
+    context = _TracedContext(_TracedStrategy, params={"value": "ok"})
+    context.set_container(_App())
+
+    result = context.execute(otel_tracer=tracer)
+
+    assert result == "ok"
+    assert [record.name for record in tracer.records] == [
+        "muscles.strategy.execute",
+        "muscles.context.execute",
+    ]
+    context_span = tracer.records[-1]
+    assert context_span.attributes["muscles.app"] == "_App"
+    assert context_span.attributes["muscles.strategy"] == "_TracedStrategy"
 
 
 def test_server_dispatch_creates_server_span_with_route_attributes():

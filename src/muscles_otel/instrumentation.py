@@ -61,6 +61,21 @@ class MusclesTracer:
         return [record for record in self.records if record.name == name]
 
 
+class OtelContextMixin:
+    def execute(self, *args, **kwargs):
+        tracer = kwargs.get("otel_tracer")
+        if tracer is None:
+            return super().execute(*args, **kwargs)
+        return tracer.instrument_call(
+            "muscles.context.execute",
+            lambda: super(OtelContextMixin, self).execute(*args, **kwargs),
+            **{
+                "muscles.app": _app_name(getattr(self, "_owner", None)),
+                "muscles.strategy": _strategy_name(getattr(self, "strategy", None)),
+            },
+        )
+
+
 class OtelStrategyMixin:
     def execute(self, *args, **kwargs):
         tracer = kwargs.pop("otel_tracer", None)
@@ -196,6 +211,12 @@ def _app_name(app) -> str | None:
     if isinstance(app, str):
         return app
     return app.__class__.__name__
+
+
+def _strategy_name(strategy) -> str | None:
+    if strategy is None:
+        return None
+    return getattr(strategy, "__name__", None) or strategy.__class__.__name__
 
 
 def _redact_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
