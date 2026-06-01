@@ -176,8 +176,15 @@ def _action_context(app, registry, action, transport):
 
 
 def _action_attributes(app, action_name: str, transport: str | None) -> dict[str, Any]:
+    try:
+        from muscles.core import inspect_application
+
+        contract = inspect_application(app)
+    except Exception:
+        contract = {}
     return {
-        "muscles.app": _app_name(app),
+        "muscles.app": contract.get("app") or _app_name(app),
+        "muscles.runtime_mode": contract.get("runtime_mode"),
         "muscles.action.name": action_name,
         "muscles.transport": transport,
     }

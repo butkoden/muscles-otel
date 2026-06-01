@@ -139,6 +139,8 @@ def test_action_dispatch_records_execute_validate_rules_handler_spans():
     ]
     execute_span = tracer.records[-1]
     assert execute_span.attributes["muscles.action.name"] == "bookings.create"
+    assert execute_span.attributes["muscles.app"] == "_LocalApp"
+    assert execute_span.attributes["muscles.runtime_mode"] in {"development", "test", "production"}
     assert execute_span.attributes["muscles.transport"] == "mcp"
     assert execute_span.attributes["muscles.result.type"] == "dict"
 
