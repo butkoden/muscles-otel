@@ -20,3 +20,16 @@ observability model.
 
 Provide opt-in tracing helpers and middleware/hooks for core Muscles lifecycle
 events with tests proving that disabled instrumentation is cheap.
+
+## Current Stage (Issue #1)
+
+Implemented opt-in lifecycle tracer:
+
+- disabled mode: no span allocation and zero records;
+- enabled mode: span duration and attributes are captured.
+
+### Run tests
+
+```bash
+python -m pytest -q
+```
