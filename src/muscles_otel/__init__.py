@@ -1,3 +1,15 @@
-from .instrumentation import MusclesTracer, SpanRecord
+from .instrumentation import (
+    MusclesTracer,
+    OtelStrategyMixin,
+    SpanRecord,
+    instrument_action_dispatch,
+    instrument_server_dispatch,
+)
 
-__all__ = ["MusclesTracer", "SpanRecord"]
+__all__ = [
+    "MusclesTracer",
+    "OtelStrategyMixin",
+    "SpanRecord",
+    "instrument_action_dispatch",
+    "instrument_server_dispatch",
+]
