@@ -6,6 +6,14 @@ This package makes Muscles credible in production by tracing real framework
 lifecycle points: strategy execution, server dispatch, action dispatch,
 validation, rules/security, and handler execution.
 
+## Related Repositories
+
+- [`muscles`](https://github.com/butkoden/muscles) - core lifecycle, context, actions and dispatcher hooks.
+- [`muscles-asgi`](https://github.com/butkoden/muscles-asgi) - ASGI runtime spans and server dispatch surfaces.
+- [`muscles-wsgi`](https://github.com/butkoden/muscles-wsgi) - WSGI runtime spans and server dispatch surfaces.
+- [`muscles-sql`](https://github.com/butkoden/muscles-sql) - SQL flows that can be traced by application instrumentation.
+- [`muscles-benchmarks`](https://github.com/butkoden/muscles-benchmarks) - observability overhead regression checks.
+
 ## Concept Guardrails
 
 - Observability must follow the Muscles application model and inspect contract,
