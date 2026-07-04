@@ -5,10 +5,15 @@ from dataclasses import dataclass, field
 import inspect
 from collections.abc import Iterable
 from time import perf_counter
-from typing import Any, Iterator
+from typing import Any, Iterator, Protocol, cast
 
 
 SENSITIVE_ATTRIBUTE_PARTS = ("secret", "token", "password", "payload", "api_key", "authorization")
+
+
+class _Executable(Protocol):
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        ...
 
 
 @dataclass(frozen=True)
@@ -65,10 +70,10 @@ class OtelContextMixin:
     def execute(self, *args, **kwargs):
         tracer = kwargs.get("otel_tracer")
         if tracer is None:
-            return super().execute(*args, **kwargs)
+            return cast(_Executable, super()).execute(*args, **kwargs)
         return tracer.instrument_call(
             "muscles.context.execute",
-            lambda: super(OtelContextMixin, self).execute(*args, **kwargs),
+            lambda: cast(_Executable, super(OtelContextMixin, self)).execute(*args, **kwargs),
             **{
                 "muscles.app": _app_name(getattr(self, "_owner", None)),
                 "muscles.strategy": _strategy_name(getattr(self, "strategy", None)),
@@ -81,10 +86,10 @@ class OtelStrategyMixin:
         tracer = kwargs.pop("otel_tracer", None)
         container = kwargs.get("container")
         if tracer is None:
-            return super().execute(*args, **kwargs)
+            return cast(_Executable, super()).execute(*args, **kwargs)
         return tracer.instrument_call(
             "muscles.strategy.execute",
-            lambda: super(OtelStrategyMixin, self).execute(*args, **kwargs),
+            lambda: cast(_Executable, super(OtelStrategyMixin, self)).execute(*args, **kwargs),
             **{
                 "muscles.app": _app_name(container),
                 "muscles.strategy": self.__class__.__name__,
@@ -152,8 +157,9 @@ def instrument_action_dispatch(
             try:
                 value = dispatcher._call_handler(action, payload or {}, context)
                 if inspect.isawaitable(value):
-                    if hasattr(value, "close"):
-                        value.close()
+                    close = getattr(value, "close", None)
+                    if callable(close):
+                        close()
                     raise ActionExecutionError(
                         action.name,
                         "Async action handlers are not supported by ActionDispatcher.execute; use an async dispatcher.",
