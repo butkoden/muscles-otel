@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import inspect
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 import re
 from time import perf_counter
 from typing import Any, Iterator, Protocol, cast
@@ -42,21 +42,22 @@ class SpanRecord:
 
 
 class MusclesTracer:
-    def __init__(self, enabled: bool = False) -> None:
+    def __init__(self, enabled: bool = False, attributes: Mapping[str, Any] | None = None) -> None:
         self.enabled = enabled
+        self.attributes = _redact_attributes(dict(attributes or {}))
         self.records: list[SpanRecord] = []
 
     @contextmanager
-    def span(self, name: str, **attributes: Any) -> Iterator[None]:
+    def span(self, name: str, **attributes: Any) -> Iterator[dict[str, Any] | None]:
         if not self.enabled:
-            yield
+            yield None
             return
         started = perf_counter()
         status = "ok"
         events: list[dict[str, Any]] = []
-        safe_attributes = _redact_attributes(attributes)
+        safe_attributes = _redact_attributes({**self.attributes, **attributes})
         try:
-            yield
+            yield safe_attributes
         except Exception as exc:
             status = "error"
             safe_attributes["error.type"] = exc.__class__.__name__
@@ -68,7 +69,7 @@ class MusclesTracer:
                 SpanRecord(
                     name=name,
                     duration_ms=duration_ms,
-                    attributes=safe_attributes,
+                    attributes=_redact_attributes(safe_attributes),
                     status=status,
                     events=events,
                 )
@@ -87,14 +88,14 @@ class OtelContextMixin:
         tracer = kwargs.get("otel_tracer")
         if tracer is None:
             return cast(_Executable, super()).execute(*args, **kwargs)
-        return tracer.instrument_call(
+        with tracer.span(
             "muscles.context.execute",
-            lambda: cast(_Executable, super(OtelContextMixin, self)).execute(*args, **kwargs),
             **{
                 "muscles.app": _app_name(getattr(self, "_owner", None)),
                 "muscles.strategy": _strategy_name(getattr(self, "strategy", None)),
             },
-        )
+        ):
+            return cast(_Executable, super(OtelContextMixin, self)).execute(*args, **kwargs)
 
 
 class OtelStrategyMixin:
@@ -103,14 +104,14 @@ class OtelStrategyMixin:
         container = kwargs.get("container")
         if tracer is None:
             return cast(_Executable, super()).execute(*args, **kwargs)
-        return tracer.instrument_call(
+        with tracer.span(
             "muscles.strategy.execute",
-            lambda: cast(_Executable, super(OtelStrategyMixin, self)).execute(*args, **kwargs),
             **{
                 "muscles.app": _app_name(container),
                 "muscles.strategy": self.__class__.__name__,
             },
-        )
+        ):
+            return cast(_Executable, super(OtelStrategyMixin, self)).execute(*args, **kwargs)
 
 
 def instrument_server_dispatch(

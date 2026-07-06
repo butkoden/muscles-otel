@@ -76,6 +76,33 @@ def test_otel_package_reports_safe_inspect_and_doctor_payloads_from_same_runtime
     assert doctor["packages"]["otel"]["status"] == "ok"
 
 
+def test_otel_package_applies_project_attributes_to_every_span():
+    app = SimpleNamespace()
+    runtime = install_package(
+        app,
+        {
+            "enabled": True,
+            "service_name": "booking-api",
+            "attributes": {
+                "deployment.environment": "test",
+                "api_key": "must-not-leak",
+            },
+        },
+        OtelPackage(),
+    )
+
+    with resolve_telemetry(app).span("project.healthcheck", **{"http.route": "/ready"}):
+        pass
+
+    record = runtime.records[-1]
+    assert record.name == "project.healthcheck"
+    assert record.attributes == {
+        "service.name": "booking-api",
+        "deployment.environment": "test",
+        "http.route": "/ready",
+    }
+
+
 def test_disabled_package_provider_records_no_spans():
     app = SimpleNamespace()
     telemetry = init_package(app, {"enabled": False})

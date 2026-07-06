@@ -13,7 +13,10 @@ class OtelPackage:
     def build_runtime(self, app, config: Mapping[str, Any]):
         del app
         package_config = _normalize_config(config)
-        return MusclesTracer(enabled=_as_bool(package_config.get("enabled", False)))
+        return MusclesTracer(
+            enabled=_as_bool(package_config.get("enabled", False)),
+            attributes=_runtime_attributes(package_config),
+        )
 
     def services(self, app, runtime: MusclesTracer, config: Mapping[str, Any] | None = None):
         del app, config
@@ -35,6 +38,7 @@ class OtelPackage:
                 "provider": "MusclesTracer",
                 "enabled": runtime.enabled,
                 "records.count": len(runtime.records),
+                "attributes.keys": sorted(runtime.attributes.keys()),
             }
 
         return inspect_otel
@@ -92,6 +96,14 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on", "enabled"}
     return bool(value)
+
+
+def _runtime_attributes(config: Mapping[str, Any]) -> dict[str, Any]:
+    attributes = _normalize_config(config.get("attributes", {}))
+    service_name = config.get("service_name") or config.get("service.name")
+    if service_name:
+        attributes.setdefault("service.name", service_name)
+    return attributes
 
 
 def _resolve_install_hook():
