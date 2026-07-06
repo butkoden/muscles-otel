@@ -69,4 +69,20 @@ phases. A future core hook API should replace this with official callbacks.
 ## Sensitive Data
 
 Sensitive attributes such as tokens, passwords, API keys, authorization headers,
-and payload values are redacted by default.
+payloads, prompts, queries, documents, chunks, content, body, HTML and text
+values are redacted by default.
+
+## Framework Package Provider
+
+`muscles-otel` can be installed through the common Muscles package lifecycle:
+
+```python
+from muscles import TelemetryProvider
+from muscles_otel import init_package
+
+tracer = init_package(app, {"enabled": True})
+telemetry = app.container.resolve(TelemetryProvider)
+```
+
+The tracer implements the neutral `TelemetryProvider.span(...)` surface. Other
+packages resolve telemetry from `muscles` core and keep `muscles-otel` optional.

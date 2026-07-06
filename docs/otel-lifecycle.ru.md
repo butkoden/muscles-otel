@@ -69,4 +69,21 @@ Stage note: action phase spans сейчас повторяют доступны�
 ## Sensitive data
 
 Sensitive attributes вроде tokens, passwords, API keys, authorization headers и
-payload values редактируются по умолчанию.
+payloads, prompts, queries, documents, chunks, content, body, HTML и text values
+редактируются по умолчанию.
+
+## Framework package provider
+
+`muscles-otel` можно подключить через общий package lifecycle Muscles:
+
+```python
+from muscles import TelemetryProvider
+from muscles_otel import init_package
+
+tracer = init_package(app, {"enabled": True})
+telemetry = app.container.resolve(TelemetryProvider)
+```
+
+Tracer реализует нейтральную поверхность `TelemetryProvider.span(...)`.
+Остальные пакеты получают telemetry через `muscles` core и не импортируют
+`muscles_otel` напрямую.

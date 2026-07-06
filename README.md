@@ -37,6 +37,10 @@ Implemented opt-in lifecycle instrumentation:
 
 - disabled mode: no span allocation and zero records;
 - enabled mode: span duration and attributes are captured.
+- package lifecycle entry point: `init_package(app, config)` installs
+  `OtelPackage` through Muscles core lifecycle;
+- provider registration: enabled tracer is registered as the neutral
+  `TelemetryProvider` service, so other packages only depend on `muscles`;
 - `OtelStrategyMixin` for `muscles.strategy.execute`;
 - `OtelContextMixin` for `muscles.context.execute`;
 - `instrument_server_dispatch()` for `muscles.server.dispatch`;
@@ -52,6 +56,36 @@ Implementation note: action lifecycle spans currently mirror the core
 dispatcher phases through the available dispatcher methods. A future core hook
 API can replace this with official callbacks without changing the public
 instrumentation surface.
+
+## Package Lifecycle Provider
+
+Applications should install `muscles-otel` as an optional framework package:
+
+```python
+from types import SimpleNamespace
+
+from muscles import TelemetryProvider
+from muscles_otel import init_package
+
+app = SimpleNamespace()
+tracer = init_package(app, {"enabled": True})
+
+telemetry = app.container.resolve(TelemetryProvider)
+assert telemetry is tracer
+```
+
+Framework packages such as `muscles-ai` and `muscles-documents` must not import
+`muscles_otel` directly. They resolve telemetry through Muscles core:
+
+```python
+from muscles import resolve_telemetry
+
+telemetry = resolve_telemetry(app)
+with telemetry.span("muscles.package.operation"):
+    ...
+```
+
+When this package is not installed, core returns `NoopTelemetry`.
 
 ### Run tests
 

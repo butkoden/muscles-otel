@@ -4,11 +4,27 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 import inspect
 from collections.abc import Iterable
+import re
 from time import perf_counter
 from typing import Any, Iterator, Protocol, cast
 
 
-SENSITIVE_ATTRIBUTE_PARTS = ("secret", "token", "password", "payload", "api_key", "authorization")
+SENSITIVE_ATTRIBUTE_PARTS = (
+    "secret",
+    "token",
+    "password",
+    "api_key",
+    "authorization",
+    "payload",
+    "prompt",
+    "query",
+    "document",
+    "chunk",
+    "content",
+    "body",
+    "html",
+    "text",
+)
 
 
 class _Executable(Protocol):
@@ -228,11 +244,18 @@ def _strategy_name(strategy) -> str | None:
 def _redact_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
     safe = {}
     for key, value in attributes.items():
-        lowered = key.lower()
-        if any(part in lowered for part in SENSITIVE_ATTRIBUTE_PARTS):
+        if _is_sensitive_attribute_key(key):
             continue
         safe[key] = value
     return safe
+
+
+def _is_sensitive_attribute_key(key: str) -> bool:
+    lowered = key.lower()
+    if lowered in SENSITIVE_ATTRIBUTE_PARTS:
+        return True
+    tokens = [token for token in re.split(r"[^a-z0-9]+", lowered) if token]
+    return any(token in SENSITIVE_ATTRIBUTE_PARTS for token in tokens)
 
 
 def _is_stream_result(value: Any) -> bool:
