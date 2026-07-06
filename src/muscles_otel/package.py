@@ -56,15 +56,16 @@ class OtelPackage:
 
         return doctor_otel
 
+    def generator_providers(self, app, runtime: MusclesTracer, config: Mapping[str, Any] | None = None):
+        del app, runtime, config
+        return []
+
 
 def init_package(app, config: Mapping[str, Any] | None = None):
     package = OtelPackage()
     installable = _resolve_install_hook()
     if installable is not None:
-        try:
-            return installable(app=app, config=config, package=package)  # type: ignore[call-arg]
-        except Exception:
-            pass
+        return installable(app=app, config=config, package=package)  # type: ignore[call-arg]
 
     package_config = _normalize_config(config or {})
     runtime = package.build_runtime(app, package_config)
