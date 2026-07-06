@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import inspect
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 import re
 from time import perf_counter
 from typing import Any, Iterator, Protocol, cast
@@ -42,8 +42,9 @@ class SpanRecord:
 
 
 class MusclesTracer:
-    def __init__(self, enabled: bool = False) -> None:
+    def __init__(self, enabled: bool = False, attributes: Mapping[str, Any] | None = None) -> None:
         self.enabled = enabled
+        self.attributes = _redact_attributes(dict(attributes or {}))
         self.records: list[SpanRecord] = []
 
     @contextmanager
@@ -54,7 +55,7 @@ class MusclesTracer:
         started = perf_counter()
         status = "ok"
         events: list[dict[str, Any]] = []
-        safe_attributes = _redact_attributes(attributes)
+        safe_attributes = _redact_attributes({**self.attributes, **attributes})
         try:
             yield
         except Exception as exc:
