@@ -94,7 +94,15 @@ from muscles import (
 from muscles_otel import OtelPackage, init_package
 
 app = App()
-tracer = install_package(app, {"enabled": True}, OtelPackage())
+tracer = install_package(
+    app,
+    {
+        "enabled": True,
+        "service_name": "booking-api",
+        "attributes": {"deployment.environment": "production"},
+    },
+    OtelPackage(),
+)
 
 telemetry = app.container.resolve(TelemetryProvider)
 assert telemetry is tracer
@@ -119,13 +127,34 @@ with telemetry.span("muscles.package.operation"):
 
 When this package is not installed, core returns `NoopTelemetry`.
 
+`service_name` and `service.name` both set the default `service.name` span
+attribute. Values under `attributes` are added to every span after sensitive
+keys such as tokens, API keys, prompts and payloads are removed. These are
+`MusclesTracer` defaults today; they are not yet OpenTelemetry SDK Resource
+configuration or exporter settings.
+
+Adapters may enrich an active span with runtime facts that are only known after
+execution:
+
+```python
+with telemetry.span("muscles.server.dispatch", **{"http.route": "/ready"}) as span:
+    response = dispatch()
+    if isinstance(span, dict):
+        span["http.status_code"] = response.status_code
+```
+
 Inspection reports the installed `otel` package and a safe capability payload:
 
 ```python
 from muscles import inspect_application, doctor_application
 
 inspect_application(app)["capabilities"]["otel"]
-# {"provider": "MusclesTracer", "enabled": True, "records.count": 0}
+# {
+#   "provider": "MusclesTracer",
+#   "enabled": True,
+#   "records.count": 0,
+#   "attributes.keys": ["deployment.environment", "service.name"],
+# }
 
 doctor_application(app)["packages"]["otel"]
 # {"status": "ok", "checks": [{"name": "otel.telemetry_provider", ...}]}

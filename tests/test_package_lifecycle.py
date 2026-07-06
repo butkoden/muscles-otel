@@ -82,7 +82,7 @@ def test_otel_package_applies_project_attributes_to_every_span():
         app,
         {
             "enabled": True,
-            "service_name": "assetforge-backend",
+            "service_name": "booking-api",
             "attributes": {
                 "deployment.environment": "test",
                 "api_key": "must-not-leak",
@@ -91,13 +91,13 @@ def test_otel_package_applies_project_attributes_to_every_span():
         OtelPackage(),
     )
 
-    with resolve_telemetry(app).span("assetforge.healthcheck", **{"http.route": "/ready"}):
+    with resolve_telemetry(app).span("project.healthcheck", **{"http.route": "/ready"}):
         pass
 
     record = runtime.records[-1]
-    assert record.name == "assetforge.healthcheck"
+    assert record.name == "project.healthcheck"
     assert record.attributes == {
-        "service.name": "assetforge-backend",
+        "service.name": "booking-api",
         "deployment.environment": "test",
         "http.route": "/ready",
     }

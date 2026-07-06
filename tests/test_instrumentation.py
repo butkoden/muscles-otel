@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 import pytest
 
 from muscles.core import (
@@ -35,6 +37,17 @@ class _TracedContext(OtelContextMixin, Context):
 
 class _App(metaclass=ApplicationMeta):
     context = Context(_EchoStrategy)
+
+
+class _SpanOnlyTelemetry:
+    def __init__(self):
+        self.records = []
+
+    @contextmanager
+    def span(self, name, **attributes):
+        span_attributes = dict(attributes)
+        yield span_attributes
+        self.records.append((name, span_attributes))
 
 
 BOOKING_INPUT_SCHEMA = {
@@ -92,6 +105,19 @@ def test_enabled_tracer_records_span_without_sensitive_payload():
     assert record.duration_ms >= 0
 
 
+def test_enabled_span_context_allows_safe_attribute_enrichment():
+    tracer = MusclesTracer(enabled=True)
+
+    with tracer.span("muscles.server.dispatch", **{"http.route": "/ready"}) as attributes:
+        attributes["http.status_code"] = 200
+        attributes["authorization"] = "hidden"
+
+    assert tracer.records[0].attributes == {
+        "http.route": "/ready",
+        "http.status_code": 200,
+    }
+
+
 def test_extended_rag_sensitive_attributes_are_redacted():
     tracer = MusclesTracer(enabled=True)
     tracer.instrument_call(
@@ -144,6 +170,21 @@ def test_strategy_mixin_creates_strategy_execute_span():
     assert [record.name for record in tracer.records] == ["muscles.strategy.execute"]
     assert tracer.records[0].attributes["muscles.strategy"] == "_TracedStrategy"
     assert tracer.records[0].attributes["muscles.app"] == "_App"
+
+
+def test_strategy_mixin_uses_neutral_span_provider_without_instrument_call():
+    telemetry = _SpanOnlyTelemetry()
+    strategy = _TracedStrategy()
+
+    result = strategy.execute(value="ok", otel_tracer=telemetry, container=_App())
+
+    assert result == "ok"
+    assert telemetry.records == [
+        (
+            "muscles.strategy.execute",
+            {"muscles.app": "_App", "muscles.strategy": "_TracedStrategy"},
+        )
+    ]
 
 
 def test_context_mixin_creates_context_execute_span_and_passes_tracer_to_strategy():

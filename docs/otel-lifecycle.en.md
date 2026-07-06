@@ -18,7 +18,15 @@ from muscles import TelemetryProvider, install_package
 from muscles_otel import OtelPackage
 
 app = App()
-tracer = install_package(app, {"enabled": True}, OtelPackage())
+tracer = install_package(
+    app,
+    {
+        "enabled": True,
+        "service_name": "booking-api",
+        "attributes": {"deployment.environment": "production"},
+    },
+    OtelPackage(),
+)
 
 assert app.container.resolve(TelemetryProvider) is tracer
 ```
@@ -27,8 +35,25 @@ assert app.container.resolve(TelemetryProvider) is tracer
 `enabled=True` in tests or local/dev/prod environments where span collection is
 expected.
 
+`service_name` and `service.name` both set the default `service.name` span
+attribute. Values under `attributes` are added to every span after sensitive
+keys are removed. These defaults belong to `MusclesTracer`; they do not yet
+configure an OpenTelemetry SDK Resource or exporter.
+
 `init_package(app, config)` remains available for legacy package loaders and
 delegates to the same lifecycle installer when `muscles` core is available.
+
+## Enrich Active Spans
+
+Runtime adapters can add safe attributes while a span is active. This is useful
+for values known only after execution, such as HTTP status:
+
+```python
+with telemetry.span("muscles.server.dispatch", **{"http.route": "/ready"}) as span:
+    response = dispatch()
+    if isinstance(span, dict):
+        span["http.status_code"] = response.status_code
+```
 
 ## Use From Other Packages
 
@@ -57,7 +82,12 @@ inspect_application(app)["packages"]
 # [{"namespace": "otel", "name": "OtelPackage"}]
 
 inspect_application(app)["capabilities"]["otel"]
-# {"provider": "MusclesTracer", "enabled": True, "records.count": 0}
+# {
+#   "provider": "MusclesTracer",
+#   "enabled": True,
+#   "records.count": 0,
+#   "attributes.keys": ["deployment.environment", "service.name"],
+# }
 
 doctor_application(app)["packages"]["otel"]["status"]
 # "ok"
