@@ -64,15 +64,18 @@ Applications should install `muscles-otel` as an optional framework package:
 ```python
 from types import SimpleNamespace
 
-from muscles import TelemetryProvider
-from muscles_otel import init_package
+from muscles import TelemetryProvider, install_package
+from muscles_otel import OtelPackage, init_package
 
 app = SimpleNamespace()
-tracer = init_package(app, {"enabled": True})
+tracer = install_package(app, {"enabled": True}, OtelPackage())
 
 telemetry = app.container.resolve(TelemetryProvider)
 assert telemetry is tracer
 ```
+
+`init_package(app, config)` remains available for legacy auto-package loaders
+and delegates to the same core lifecycle installer.
 
 Framework packages such as `muscles-ai` and `muscles-documents` must not import
 `muscles_otel` directly. They resolve telemetry through Muscles core:

@@ -2,9 +2,44 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from muscles import TelemetryProvider, collect_package_capabilities, doctor_application
+import pytest
 
-from muscles_otel import MusclesTracer, init_package
+from muscles import (
+    TelemetryProvider,
+    collect_package_capabilities,
+    doctor_application,
+    inspect_application,
+    install_package,
+    resolve_telemetry,
+)
+
+import muscles_otel.package as package_module
+from muscles_otel import MusclesTracer, OtelPackage, init_package
+
+
+def test_otel_package_implements_full_lifecycle_contract():
+    package = OtelPackage()
+
+    for hook_name in (
+        "build_runtime",
+        "services",
+        "actions",
+        "inspection_provider",
+        "doctor_provider",
+        "generator_providers",
+    ):
+        assert callable(getattr(package, hook_name))
+
+
+def test_otel_package_can_be_installed_directly_through_core_lifecycle():
+    app = SimpleNamespace()
+
+    runtime = install_package(app, {"enabled": True}, OtelPackage())
+
+    assert isinstance(runtime, MusclesTracer)
+    assert app.container.resolve(TelemetryProvider) is runtime
+    assert resolve_telemetry(app) is runtime
+    assert inspect_application(app)["packages"] == [{"namespace": "otel", "name": "OtelPackage"}]
 
 
 def test_otel_package_registers_telemetry_provider_through_lifecycle():
@@ -23,15 +58,21 @@ def test_otel_package_registers_telemetry_provider_through_lifecycle():
     assert telemetry.records[-1].attributes == {"safe.count": 1}
 
 
-def test_otel_package_reports_safe_inspect_and_doctor_payloads():
+def test_otel_package_reports_safe_inspect_and_doctor_payloads_from_same_runtime():
     app = SimpleNamespace()
-    init_package(app, {"enabled": True})
+    runtime = init_package(app, {"enabled": True})
 
+    with resolve_telemetry(app).span("project.operation", **{"safe.count": 1}):
+        pass
+
+    records_count = len(runtime.records)
     capabilities = collect_package_capabilities(app)
     doctor = doctor_application(app)
 
     assert capabilities["otel"]["enabled"] is True
     assert capabilities["otel"]["provider"] == "MusclesTracer"
+    assert capabilities["otel"]["records.count"] == records_count
+    assert capabilities["otel"]["records.count"] >= 1
     assert doctor["packages"]["otel"]["status"] == "ok"
 
 
@@ -43,3 +84,15 @@ def test_disabled_package_provider_records_no_spans():
         pass
 
     assert telemetry.records == []
+
+
+def test_init_package_does_not_swallow_core_lifecycle_errors(monkeypatch):
+    app = SimpleNamespace()
+
+    def broken_install_hook(*args, **kwargs):
+        raise RuntimeError("install failed")
+
+    monkeypatch.setattr(package_module, "_resolve_install_hook", lambda: broken_install_hook)
+
+    with pytest.raises(RuntimeError, match="install failed"):
+        init_package(app, {"enabled": True})
