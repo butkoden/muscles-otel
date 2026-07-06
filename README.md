@@ -1,10 +1,33 @@
 # Muscles OpenTelemetry
 
-OpenTelemetry lifecycle instrumentation for Muscles production observability.
+Observability hooks and a neutral telemetry provider for Muscles lifecycle
+instrumentation.
 
-This package makes Muscles credible in production by tracing real framework
-lifecycle points: strategy execution, server dispatch, action dispatch,
-validation, rules/security, and handler execution.
+This package traces real framework lifecycle points: strategy execution, server
+dispatch, action dispatch, validation, rules/security and handler execution. The
+current implementation ships an in-memory `MusclesTracer` that implements the
+core `TelemetryProvider` interface. It does not configure an OpenTelemetry SDK,
+OTLP exporter, collector or vendor backend by itself.
+
+## What This Package Is For
+
+Use `muscles-otel` when a Muscles application or framework package needs a
+single tracing surface without importing an observability vendor directly:
+
+- applications install `OtelPackage` once during bootstrap;
+- other packages call `resolve_telemetry(app)` from `muscles`;
+- spans are recorded only when tracing is enabled;
+- sensitive attributes are redacted before they reach span records.
+
+This keeps instrumentation optional. If `muscles-otel` is not installed, core
+falls back to `NoopTelemetry`, so package code can keep the same tracing calls.
+
+## What It Is Not Yet
+
+`muscles-otel` is not yet a full OpenTelemetry distribution. It currently does
+not export traces to Jaeger, Tempo, Honeycomb, Datadog or an OTLP collector. A
+production exporter can be added behind the same `TelemetryProvider` surface
+without changing packages that already use `resolve_telemetry(app)`.
 
 ## Related Repositories
 
@@ -62,16 +85,22 @@ instrumentation surface.
 Applications should install `muscles-otel` as an optional framework package:
 
 ```python
-from types import SimpleNamespace
-
-from muscles import TelemetryProvider, install_package
+from muscles import (
+    TelemetryProvider,
+    doctor_application,
+    inspect_application,
+    install_package,
+)
 from muscles_otel import OtelPackage, init_package
 
-app = SimpleNamespace()
+app = App()
 tracer = install_package(app, {"enabled": True}, OtelPackage())
 
 telemetry = app.container.resolve(TelemetryProvider)
 assert telemetry is tracer
+
+contract = inspect_application(app)
+doctor = doctor_application(app)
 ```
 
 `init_package(app, config)` remains available for legacy auto-package loaders
@@ -89,6 +118,32 @@ with telemetry.span("muscles.package.operation"):
 ```
 
 When this package is not installed, core returns `NoopTelemetry`.
+
+Inspection reports the installed `otel` package and a safe capability payload:
+
+```python
+from muscles import inspect_application, doctor_application
+
+inspect_application(app)["capabilities"]["otel"]
+# {"provider": "MusclesTracer", "enabled": True, "records.count": 0}
+
+doctor_application(app)["packages"]["otel"]
+# {"status": "ok", "checks": [{"name": "otel.telemetry_provider", ...}]}
+```
+
+## Direct Instrumentation Helpers
+
+The package also exposes mixins and helper functions for integration points that
+already own a concrete dispatch call:
+
+- `OtelContextMixin` for `muscles.context.execute`;
+- `OtelStrategyMixin` for `muscles.strategy.execute`;
+- `instrument_server_dispatch(...)` for server/request boundaries;
+- `instrument_action_dispatch(...)` for action validation, rules and handler
+  spans.
+
+Use these helpers at runtime boundaries. Business packages should usually use
+only `resolve_telemetry(app)` and neutral span names.
 
 ### Run tests
 

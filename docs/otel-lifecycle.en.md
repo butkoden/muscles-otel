@@ -4,6 +4,65 @@
 business dispatch layer and does not define its own routing, action, validation,
 or permissions model.
 
+The package currently provides an in-memory `MusclesTracer` plus integration
+helpers. It implements the neutral `TelemetryProvider` surface from `muscles`;
+it does not configure an OpenTelemetry SDK, OTLP exporter, collector or vendor
+backend by itself.
+
+## Install In An Application
+
+Install the package once during application bootstrap:
+
+```python
+from muscles import TelemetryProvider, install_package
+from muscles_otel import OtelPackage
+
+app = App()
+tracer = install_package(app, {"enabled": True}, OtelPackage())
+
+assert app.container.resolve(TelemetryProvider) is tracer
+```
+
+`enabled=False` is the cheap default mode: spans allocate no records. Use
+`enabled=True` in tests or local/dev/prod environments where span collection is
+expected.
+
+`init_package(app, config)` remains available for legacy package loaders and
+delegates to the same lifecycle installer when `muscles` core is available.
+
+## Use From Other Packages
+
+Framework packages should not import `muscles_otel` directly. They should depend
+only on the core telemetry contract:
+
+```python
+from muscles import resolve_telemetry
+
+telemetry = resolve_telemetry(app)
+with telemetry.span("documents.search", **{"safe.count": 3}):
+    ...
+```
+
+If `muscles-otel` is not installed, `resolve_telemetry(app)` returns
+`NoopTelemetry` and the code still runs.
+
+## Inspect And Doctor
+
+After installation, core tooling can discover the package:
+
+```python
+from muscles import doctor_application, inspect_application
+
+inspect_application(app)["packages"]
+# [{"namespace": "otel", "name": "OtelPackage"}]
+
+inspect_application(app)["capabilities"]["otel"]
+# {"provider": "MusclesTracer", "enabled": True, "records.count": 0}
+
+doctor_application(app)["packages"]["otel"]["status"]
+# "ok"
+```
+
 ## Context And Strategy Execution
 
 Use `OtelContextMixin` with `muscles.core.Context` to instrument the full
@@ -72,9 +131,10 @@ Sensitive attributes such as tokens, passwords, API keys, authorization headers,
 payloads, prompts, queries, documents, chunks, content, body, HTML and text
 values are redacted by default.
 
-## Framework Package Provider
+## Legacy `init_package` Shortcut
 
-`muscles-otel` can be installed through the common Muscles package lifecycle:
+Legacy auto-package loaders may still call `init_package(app, config)`. It uses
+the same lifecycle installer when `muscles` core is present:
 
 ```python
 from muscles import TelemetryProvider
@@ -84,5 +144,5 @@ tracer = init_package(app, {"enabled": True})
 telemetry = app.container.resolve(TelemetryProvider)
 ```
 
-The tracer implements the neutral `TelemetryProvider.span(...)` surface. Other
-packages resolve telemetry from `muscles` core and keep `muscles-otel` optional.
+Prefer `install_package(app, config, OtelPackage())` in new application
+bootstrap code because it makes the lifecycle explicit.
