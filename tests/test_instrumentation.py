@@ -92,6 +92,48 @@ def test_enabled_tracer_records_span_without_sensitive_payload():
     assert record.duration_ms >= 0
 
 
+def test_extended_rag_sensitive_attributes_are_redacted():
+    tracer = MusclesTracer(enabled=True)
+    tracer.instrument_call(
+        "muscles.ai.generate",
+        lambda: "ok",
+        **{
+            "prompt": "hidden",
+            "query": "hidden",
+            "document.id": "hidden",
+            "chunk.index": 1,
+            "content": "hidden",
+            "body": "hidden",
+            "html": "<p>hidden</p>",
+            "text": "hidden",
+            "ai.provider": "noop",
+        },
+    )
+
+    assert tracer.records[0].attributes == {"ai.provider": "noop"}
+
+
+def test_redaction_keeps_safe_plural_document_attributes():
+    tracer = MusclesTracer(enabled=True)
+    tracer.instrument_call(
+        "muscles.documents.chunk",
+        lambda: "ok",
+        **{
+            "documents.source": "docs",
+            "documents.chunker": "fixed",
+            "ai.documents.retrieved": 3,
+            "document.text": "hidden",
+            "chunk.text": "hidden",
+        },
+    )
+
+    assert tracer.records[0].attributes == {
+        "documents.source": "docs",
+        "documents.chunker": "fixed",
+        "ai.documents.retrieved": 3,
+    }
+
+
 def test_strategy_mixin_creates_strategy_execute_span():
     tracer = MusclesTracer(enabled=True)
     strategy = _TracedStrategy()
